@@ -1,0 +1,6 @@
+{
+  "id": "translate",
+  "name": "翻译",
+  "version": 1,
+  "template": "请把下面的内容翻译成{{target_lang}}。只输出译文，不要解释：\n\n{{text}}"
+}
