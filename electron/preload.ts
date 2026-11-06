@@ -28,7 +28,8 @@ const api: PetApi = {
   getPrompts: () => ipcRenderer.invoke('prompts:get'),
   savePrompt: (id, template) => ipcRenderer.invoke('prompts:save', id, template),
   resetPrompt: (id) => ipcRenderer.invoke('prompts:reset', id),
-  checkProviders: () => ipcRenderer.invoke('providers:check'),
+  checkProviders: (probe) => ipcRenderer.invoke('providers:check', probe ?? null),
+  dismissSetup: () => ipcRenderer.invoke('settings:dismiss-setup'),
   copyText: (text) => ipcRenderer.invoke('clipboard:write', text),
   setClickThrough: (ignore) => {
     if (ignore === clickThrough) return

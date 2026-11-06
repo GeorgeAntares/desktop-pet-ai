@@ -24,7 +24,6 @@ export async function* streamChatCompletions(options: StreamChatOptions): AsyncG
       model: options.model,
       messages: options.messages,
       stream: true,
-      temperature: 0.3,
     }),
     signal: options.signal,
   })

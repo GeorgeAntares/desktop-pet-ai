@@ -9,6 +9,7 @@ export interface BubbleState {
   streaming: boolean
   error: boolean
   truncated: boolean
+  needsSetup?: boolean
   providerLabel?: string
 }
 
@@ -21,9 +22,14 @@ export function usePetSession() {
   const [petState, setPetState] = useState<PetState>('idle')
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [setupOpen, setSetupOpen] = useState(false)
   const [clip, setClip] = useState<ClipboardPayload | null>(null)
   const [bubble, setBubble] = useState<BubbleState | null>(null)
   const requestRef = useRef<string | null>(null)
+  const setupRef = useRef(false)
+  const settingsRef = useRef(false)
+  setupRef.current = setupOpen
+  settingsRef.current = settingsOpen
 
   useEffect(() => {
     const showClip = (payload: ClipboardPayload | null) => {
@@ -40,12 +46,18 @@ export function usePetSession() {
         return
       }
       setClip(payload)
-      setSettingsOpen(false)
+      if (!setupRef.current) setSettingsOpen(false)
       setMenuOpen(true)
       setPetState((state) => (state === 'thinking' ? state : 'notice'))
     }
 
-    const offClip = window.pet.onClipboard(showClip)
+    // 配置时复制密钥不应关面板或弹出总结/翻译。主进程已推进 lastSeen，关掉后不会补弹。
+    const onClipboard = (payload: ClipboardPayload | null) => {
+      if (setupRef.current || settingsRef.current) return
+      showClip(payload)
+    }
+
+    const offClip = window.pet.onClipboard(onClipboard)
     const offHotkey = window.pet.onHotkey(showClip)
     const offToken = window.pet.onToken(({ requestId, delta }) => {
       if (requestId !== requestRef.current) return
@@ -70,6 +82,7 @@ export function usePetSession() {
         streaming: false,
         error: true,
         truncated: current?.truncated ?? false,
+        needsSetup: /设置|API Key|Ollama|没有可用的模型/.test(message),
       }))
       setPetState('error')
     })
@@ -91,10 +104,23 @@ export function usePetSession() {
   }, [petState])
 
   useEffect(() => {
+    let alive = true
+    void (async () => {
+      const [settings, status] = await Promise.all([window.pet.getSettings(), window.pet.checkProviders()])
+      if (!alive) return
+      if (!settings.setupDismissed && !status.ollama && !status.cloud) setSetupOpen(true)
+    })()
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       setMenuOpen(false)
       setSettingsOpen(false)
+      setSetupOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -125,6 +151,7 @@ export function usePetSession() {
         streaming: false,
         error: true,
         truncated: clip.truncated,
+        needsSetup: true,
       })
     }
   }
@@ -148,6 +175,7 @@ export function usePetSession() {
   }
 
   function openSettings() {
+    setSetupOpen(false)
     setSettingsOpen(true)
     setMenuOpen(false)
   }
@@ -156,7 +184,9 @@ export function usePetSession() {
     petState,
     menuOpen,
     settingsOpen,
+    setupOpen,
     setSettingsOpen,
+    setSetupOpen,
     bubble,
     run,
     ignore,

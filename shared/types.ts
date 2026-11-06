@@ -27,6 +27,7 @@ export interface AppSettings {
   promptOverrides: Partial<Record<ActionId, string>>
   windowPosition: { x: number; y: number } | null
   recent: RecentItem[]
+  setupDismissed: boolean
 }
 
 export type SettingsPatch = Partial<
@@ -79,8 +80,21 @@ export interface ErrorEvent {
   message: string
 }
 
+export interface ProviderProbe {
+  ollamaBaseUrl?: string
+  ollamaModel?: string
+  cloudBaseUrl?: string
+  cloudModel?: string
+  cloudApiKey?: string
+  deep?: boolean
+}
+
 export interface ProviderStatus {
   ollama: boolean
+  ollamaMessage: string
+  ollamaModels: string[]
   cloud: boolean
   cloudFromEnv: boolean
+  cloudReachable: boolean
+  cloudMessage: string
 }

@@ -1,16 +1,20 @@
 import { app, BrowserWindow, clipboard, ipcMain, screen } from 'electron'
 import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-import type { ActionId, RunActionRequest, SettingsPatch } from '../shared/types'
+import { dirname, join } from 'node:path'
+import type { ActionId, ProviderProbe, ProviderStatus, RunActionRequest, SettingsPatch } from '../shared/types'
 import { createProvider } from './ai'
 import { checkOllama } from './ai/ollama'
+import { probeCloud, probeModels } from './ai/probe'
+import { normalizeApiKey } from './key'
 import { buildMessages, defaultPrompts } from './ai/prompt'
 import { NoProviderError, chooseProvider } from './ai/router'
+import { applyEnv, envCandidates } from './env'
 import { noteOwnClipboard, readClipboardPayload, startClipboard, stopClipboard } from './clipboard'
 import { rememberSuccess, varsFromMemory } from './memory'
 import { registerHotkey, unregisterHotkeys } from './shortcut'
 import {
+  dismissSetup,
   effectiveCloudApiKey,
   getRecent,
   getSettings,
@@ -42,24 +46,16 @@ function log(message: string): void {
 }
 
 function loadDotEnv(): void {
-  const files = [resolve(process.cwd(), '.env'), resolve(app.getAppPath(), '.env')]
+  const files = envCandidates({
+    cwd: process.cwd(),
+    appPath: app.getAppPath(),
+    exeDir: dirname(process.execPath),
+    userData: app.getPath('userData'),
+  })
   for (const file of files) {
     if (!existsSync(file)) continue
-    for (const line of readFileSync(file, 'utf8').split('\n')) {
-      const trimmed = line.trim()
-      if (!trimmed || trimmed.startsWith('#')) continue
-      const eq = trimmed.indexOf('=')
-      if (eq < 1) continue
-      const key = trimmed.slice(0, eq).trim()
-      let value = trimmed.slice(eq + 1).trim()
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        value = value.slice(1, -1)
-      }
-      if (process.env[key] === undefined) process.env[key] = value
-    }
+    const applied = applyEnv(readFileSync(file, 'utf8'))
+    if (applied.includes('XAI_API_KEY')) log('已从 .env 读入 XAI_API_KEY')
   }
 }
 
@@ -108,6 +104,67 @@ async function ollamaHealthy(url: string): Promise<boolean> {
   const ok = await checkOllama(url)
   ollamaCache = { url, ok, at: now }
   return ok
+}
+
+function readProbe(raw: unknown): ProviderProbe {
+  if (!raw || typeof raw !== 'object') return {}
+  const body = raw as ProviderProbe
+  return {
+    ollamaBaseUrl: typeof body.ollamaBaseUrl === 'string' ? body.ollamaBaseUrl : undefined,
+    ollamaModel: typeof body.ollamaModel === 'string' ? body.ollamaModel : undefined,
+    cloudBaseUrl: typeof body.cloudBaseUrl === 'string' ? body.cloudBaseUrl : undefined,
+    cloudModel: typeof body.cloudModel === 'string' ? body.cloudModel : undefined,
+    cloudApiKey: typeof body.cloudApiKey === 'string' ? body.cloudApiKey : undefined,
+    deep: body.deep === true,
+  }
+}
+
+async function inspectProviders(probe: ProviderProbe): Promise<ProviderStatus> {
+  const settings = getSettings()
+  const ollamaBaseUrl = probe.ollamaBaseUrl?.trim() || settings.ollamaBaseUrl
+  const ollamaModel = probe.ollamaModel?.trim() || settings.ollamaModel
+  const cloudBaseUrl = probe.cloudBaseUrl?.trim() || settings.cloudBaseUrl
+  const cloudModel = probe.cloudModel?.trim() || settings.cloudModel
+  let apiKey = ''
+  let cloudFromEnv = false
+  if (typeof probe.cloudApiKey === 'string') apiKey = normalizeApiKey(probe.cloudApiKey)
+  else apiKey = normalizeApiKey(settings.cloudApiKey)
+  if (!apiKey) {
+    apiKey = normalizeApiKey(process.env.XAI_API_KEY || '')
+    cloudFromEnv = apiKey.length > 0
+  }
+
+  const ollamaProbe = await probeModels(ollamaBaseUrl, undefined, 1200)
+  ollamaCache = { url: ollamaBaseUrl.replace(/\/+$/, ''), ok: ollamaProbe.ok, at: Date.now() }
+  let ollamaMessage = ollamaProbe.ok ? '可达' : '不可达'
+  if (ollamaProbe.ok && ollamaProbe.models.length > 0 && !ollamaProbe.models.includes(ollamaModel)) {
+    ollamaMessage = `可达，但没有模型 ${ollamaModel}`
+  }
+
+  let cloudReachable = false
+  let cloudMessage = '未配置'
+  if (apiKey) {
+    const cloudProbe = await probeCloud(cloudBaseUrl, apiKey, cloudModel, {
+      chatFallback: probe.deep === true,
+      timeoutMs: probe.deep ? 12000 : 8000,
+    })
+    cloudReachable = cloudProbe.ok
+    if (cloudProbe.ok) cloudMessage = cloudFromEnv ? '已配置（环境变量）' : '已配置'
+    else if (cloudProbe.message === '密钥无效或未授权') cloudMessage = '密钥无效'
+    else if (cloudProbe.message === '连不上') cloudMessage = '未连通'
+    else cloudMessage = cloudProbe.message
+    log(`cloud ${cloudMessage}`)
+  }
+
+  return {
+    ollama: ollamaProbe.ok,
+    ollamaMessage,
+    ollamaModels: ollamaProbe.models,
+    cloud: apiKey.length > 0,
+    cloudFromEnv,
+    cloudReachable,
+    cloudMessage,
+  }
 }
 
 function send(channel: string, payload: unknown): void {
@@ -253,6 +310,7 @@ function registerIpc(): void {
     inflight.get(requestId)?.abort()
   })
   ipcMain.handle('settings:get', () => getSettings())
+  ipcMain.handle('settings:dismiss-setup', () => dismissSetup())
   ipcMain.handle('settings:save', (_event, patch: unknown) => {
     if (!patch || typeof patch !== 'object') throw new Error('无效设置')
     ollamaCache = null
@@ -272,16 +330,9 @@ function registerIpc(): void {
     setPromptOverride(id, null)
     return promptViews()
   })
-  ipcMain.handle('providers:check', async () => {
-    const settings = getSettings()
+  ipcMain.handle('providers:check', async (_event, raw: unknown) => {
     ollamaCache = null
-    const fromSettings = settings.cloudApiKey.trim().length > 0
-    const cloudFromEnv = !fromSettings && Boolean(process.env.XAI_API_KEY?.trim())
-    return {
-      ollama: await ollamaHealthy(settings.ollamaBaseUrl),
-      cloud: fromSettings || cloudFromEnv,
-      cloudFromEnv,
-    }
+    return inspectProviders(readProbe(raw))
   })
   ipcMain.handle('memory:recent', () => getRecent())
   ipcMain.handle('clipboard:write', (_event, text: unknown) => {

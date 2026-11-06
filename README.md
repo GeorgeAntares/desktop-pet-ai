@@ -26,13 +26,15 @@ npm run build
 
 ## 配置模型
 
-云端密钥放在设置面板，或项目根目录的 `.env`：
+第一次打开、并且本地和云端都还没接上时，会直接弹出配置。本地显示「可达」或「不可达」，云端显示「已配置」「未配置」「密钥无效」或「未连通」。点「重新检测」会按当前表单再查一次，不必先保存。
+
+云端密钥可以写在设置里，也可以放在 `.env`：
 
 ```bash
 XAI_API_KEY=你的密钥
 ```
 
-密钥只留在本机（设置写入 Electron 的 userData，或读取环境变量），不会打包进仓库。把 Base URL 改成别的服务，就可以换成 DeepSeek、Kimi 或其他 OpenAI 兼容接口。
+程序会按这个顺序查找 `.env`：当前工作目录、安装目录、`%APPDATA%\desktop-pet-ai\.env`。从 `release\win-unpacked\桌宠.exe` 启动时，还会再看项目根目录。设置里保存的密钥优先于环境变量，并且只留在本机，不会打包进仓库。把 Base URL 改成别的服务，就可以换成 DeepSeek、Kimi 或其他 OpenAI 兼容接口。
 
 本地模型需要先启动 [Ollama](https://ollama.com/)，并拉好设置里填写的模型，默认是 `qwen2.5:7b`：
 

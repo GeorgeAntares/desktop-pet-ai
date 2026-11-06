@@ -11,8 +11,14 @@ export function App() {
 
   return (
     <main className="stage">
-      {session.settingsOpen ? (
-        <Settings onClose={() => session.setSettingsOpen(false)} />
+      {session.settingsOpen || session.setupOpen ? (
+        <Settings
+          intent={session.setupOpen && !session.settingsOpen ? 'setup' : 'full'}
+          onClose={() => {
+            session.setSettingsOpen(false)
+            session.setSetupOpen(false)
+          }}
+        />
       ) : (
         <>
           {session.bubble && (
@@ -21,6 +27,7 @@ export function App() {
               onStop={session.stop}
               onCopy={() => void session.copyResult()}
               onClose={session.closeBubble}
+              onConfigure={session.openSettings}
             />
           )}
           {session.menuOpen && (

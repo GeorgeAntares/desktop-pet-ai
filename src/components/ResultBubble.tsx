@@ -5,11 +5,13 @@ export function ResultBubble({
   onStop,
   onCopy,
   onClose,
+  onConfigure,
 }: {
   bubble: BubbleState
   onStop: () => void
   onCopy: () => void
   onClose: () => void
+  onConfigure: () => void
 }) {
   return (
     <section className={`bubble hit${bubble.error ? ' is-error' : ''}`} aria-live="polite">
@@ -25,6 +27,11 @@ export function ResultBubble({
               <button type="button" onClick={onCopy}>
                 复制
               </button>
+              {bubble.needsSetup && (
+                <button type="button" onClick={onConfigure}>
+                  去配置
+                </button>
+              )}
               <button type="button" onClick={onClose}>
                 关闭
               </button>

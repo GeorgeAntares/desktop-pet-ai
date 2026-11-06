@@ -267,6 +267,46 @@ button.primary:disabled {
   font-size: 12px;
 }
 
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #f6f3fb;
+  font-size: 12px;
+}
+
+.status-card strong {
+  font-size: 13px;
+}
+
+.status-card span {
+  word-break: break-word;
+}
+
+.status-card.is-ok {
+  background: #e9f8ef;
+  color: #1d6b3a;
+}
+
+.status-card.is-bad {
+  background: #fff1ee;
+  color: #9c3b32;
+}
+
+.bar-actions {
+  display: flex;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
 .bubble.is-error {
   background: #fff6f4;
 }
@@ -283,6 +323,7 @@ button.primary:disabled {
 }
 
 .settings-bar {
+  flex-shrink: 0;
   padding: 12px 14px;
   -webkit-app-region: drag;
 }
@@ -293,6 +334,8 @@ button.primary:disabled {
 }
 
 .settings-body {
+  flex: 1;
+  min-height: 0;
   padding: 0 14px 12px;
   overflow: auto;
   display: flex;

@@ -1,4 +1,5 @@
 import Store from 'electron-store'
+import { normalizeApiKey } from './key'
 import type {
   ActionId,
   AppSettings,
@@ -23,6 +24,7 @@ export const defaultSettings: AppSettings = {
   promptOverrides: {},
   windowPosition: null,
   recent: [],
+  setupDismissed: false,
 }
 
 const store = new Store<AppSettings>({
@@ -38,11 +40,12 @@ export function getSettings(): AppSettings {
     promptOverrides: { ...(raw.promptOverrides ?? {}) },
     recent: Array.isArray(raw.recent) ? raw.recent.slice(0, 5) : [],
     windowPosition: raw.windowPosition ?? null,
+    setupDismissed: Boolean(raw.setupDismissed),
   }
 }
 
 export function effectiveCloudApiKey(settings = getSettings()): string {
-  return settings.cloudApiKey.trim() || process.env.XAI_API_KEY?.trim() || ''
+  return normalizeApiKey(settings.cloudApiKey) || normalizeApiKey(process.env.XAI_API_KEY || '')
 }
 
 export function updateSettings(patch: SettingsPatch): AppSettings {
@@ -60,12 +63,17 @@ export function updateSettings(patch: SettingsPatch): AppSettings {
   if (typeof patch.cloudModel === 'string' && patch.cloudModel.trim()) {
     next.cloudModel = patch.cloudModel.trim().slice(0, 120)
   }
-  if (typeof patch.cloudApiKey === 'string') next.cloudApiKey = patch.cloudApiKey.trim()
+  if (typeof patch.cloudApiKey === 'string') next.cloudApiKey = normalizeApiKey(patch.cloudApiKey)
   if (typeof patch.targetLang === 'string' && patch.targetLang.trim()) {
     next.targetLang = patch.targetLang.trim().slice(0, 32)
   }
   if (patch.summaryStyle && STYLES.includes(patch.summaryStyle)) next.summaryStyle = patch.summaryStyle
   store.set(next)
+  return getSettings()
+}
+
+export function dismissSetup(): AppSettings {
+  store.set('setupDismissed', true)
   return getSettings()
 }
 

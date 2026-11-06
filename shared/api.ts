@@ -5,6 +5,7 @@ import type {
   DoneEvent,
   ErrorEvent,
   PromptView,
+  ProviderProbe,
   ProviderStatus,
   RecentItem,
   RunActionRequest,
@@ -25,7 +26,8 @@ export interface PetApi {
   getPrompts(): Promise<PromptView[]>
   savePrompt(id: ActionId, template: string): Promise<PromptView[]>
   resetPrompt(id: ActionId): Promise<PromptView[]>
-  checkProviders(): Promise<ProviderStatus>
+  checkProviders(probe?: ProviderProbe): Promise<ProviderStatus>
+  dismissSetup(): Promise<AppSettings>
   copyText(text: string): Promise<void>
   setClickThrough(ignore: boolean): void
   getRecent(): Promise<RecentItem[]>
