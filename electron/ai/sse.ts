@@ -12,6 +12,26 @@ interface ChatChunk {
   }>
 }
 
+export function chatCompletionBody(options: StreamChatOptions): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    model: options.model,
+    messages: options.messages,
+    stream: true,
+  }
+  // DeepSeek 省略 thinking 时默认高思考。思考过程会先占住文本框，译文可能只留在 reasoning。
+  if (isDeepSeek(options.baseUrl)) body.thinking = { type: 'disabled' }
+  return body
+}
+
+function isDeepSeek(baseUrl: string): boolean {
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase()
+    return host === 'api.deepseek.com' || host.endsWith('.deepseek.com')
+  } catch {
+    return false
+  }
+}
+
 export async function* streamChatCompletions(options: StreamChatOptions): AsyncGenerator<string> {
   const root = options.baseUrl.replace(/\/+$/, '')
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -20,11 +40,7 @@ export async function* streamChatCompletions(options: StreamChatOptions): AsyncG
   const response = await fetch(`${root}/chat/completions`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({
-      model: options.model,
-      messages: options.messages,
-      stream: true,
-    }),
+    body: JSON.stringify(chatCompletionBody(options)),
     signal: options.signal,
   })
 

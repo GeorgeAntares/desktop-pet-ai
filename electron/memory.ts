@@ -6,7 +6,7 @@ export function varsFromMemory(text: string): PromptVars {
   const settings = getSettings()
   return {
     text,
-    target_lang: settings.targetLang || '英文',
+    target_lang: settings.targetLang || '中文',
     style: settings.summaryStyle || '简洁',
   }
 }

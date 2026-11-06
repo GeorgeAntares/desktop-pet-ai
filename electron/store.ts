@@ -19,7 +19,7 @@ export const defaultSettings: AppSettings = {
   cloudBaseUrl: 'https://api.x.ai/v1',
   cloudModel: 'grok-4.7',
   cloudApiKey: '',
-  targetLang: '英文',
+  targetLang: '中文',
   summaryStyle: '简洁',
   promptOverrides: {},
   windowPosition: null,

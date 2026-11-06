@@ -69,6 +69,15 @@ export function usePetSession() {
       setBubble((current) => {
         if (!current) return current
         const stopped = aborted ? (current.text ? `${current.text}\n（已停止）` : '（已停止）') : current.text
+        if (!aborted && !stopped.trim()) {
+          return {
+            ...current,
+            text: '没有得到结果。',
+            streaming: false,
+            error: true,
+            providerLabel,
+          }
+        }
         return { ...current, text: stopped, streaming: false, providerLabel }
       })
       setPetState(aborted ? 'idle' : 'success')
